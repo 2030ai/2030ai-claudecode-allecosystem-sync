@@ -303,6 +303,7 @@ fi
 
 for project_dir in "$HOME"/Developer/*/; do
   [ -d "$project_dir" ] || continue
+  project_dir="${project_dir%/}"  # strip trailing slash
   agents_md="$project_dir/AGENTS.md"
   claude_md="$project_dir/CLAUDE.md"
 
