@@ -66,7 +66,22 @@ These features exist in one platform only. They cannot be synced and are listed 
 | Status line | Yes | No | No |
 | Output style (explanatory) | Yes | No | No |
 | Language preference | Yes | No | No |
-| Plugins (marketplace) | Yes (serena, context7, etc.) | Limited (curated) | Limited |
+| Plugins (marketplace) | Yes (see table below) | Limited (curated) | Limited |
+
+## Plugins
+
+Plugins are platform-specific and NOT synced. Listed here for awareness:
+
+| Plugin | Claude Code | Codex | Cursor | Notes |
+|--------|-----------|-------|--------|-------|
+| code-review | Yes | No | No | CC-only plugin |
+| frontend-design | Yes | No | No | CC-only plugin |
+| serena | Yes | No | No | CC-only plugin |
+| context7 | Yes (plugin + MCP) | MCP only | MCP only | Functionality via MCP |
+| codex (rescue) | Yes (plugin) | Native | No | CC→Codex bridge |
+| google-calendar | No | Yes (curated) | No | Codex-only |
+| gmail | No | Yes (curated) | No | Codex-only |
+| github | No (gh CLI) | Yes (curated) | No | Codex-only |
 
 ## Codex-Specific: Trusted Projects
 

@@ -1,157 +1,153 @@
 # Claude Code Ecosystem Sync
 
-Cross-platform skill and MCP server sync for **Claude Code CLI/Desktop**, **Codex CLI**, and **Cursor**.
+Кросс-платформенная синхронизация скиллов и MCP-серверов для **Claude Code CLI/Desktop**, **Codex CLI** и **Cursor**.
 
-Keeps your AI coding ecosystem consistent: Claude Code CLI is the source of truth. Cursor and Codex receive symlinks for both global and project-local skills, plus additive config entries for MCP servers.
+Поддерживает консистентность вашей AI-экосистемы: Claude Code CLI — единый источник истины. Cursor и Codex получают симлинки на глобальные и проектные скиллы, а также аддитивные записи конфигурации MCP-серверов.
 
-Behavior is defined by the `ecosystem-sync` skill itself. The standalone script `scripts/ecosystem-doctor.sh` is audit-only and exists to inspect/report the current state, not to define sync policy.
+## Быстрый старт
 
-## Quick Start
+### Установка (постоянная)
 
-### Install
-
-```bash
-# Option A: Clone directly into skills directory (recommended)
-git clone https://github.com/2030ai/2030ai-claudecode-allecosystem-sync.git \
-  ~/.claude/skills/ecosystem-sync
-
-# Option B: Clone elsewhere + symlink
-git clone https://github.com/2030ai/2030ai-claudecode-allecosystem-sync.git \
-  ~/Developer/ecosystem-sync
-ln -sf ~/Developer/ecosystem-sync ~/.claude/skills/ecosystem-sync
-```
-
-### Use
-
-In Claude Code CLI or Desktop:
+Скопируйте промпт в **Claude Code**, **Codex** или **Cursor** — агент сам установит скилл:
 
 ```
-/ecosystem-sync audit      # Check what's out of sync (read-only)
-/ecosystem-sync sync       # Fix gaps (additive only)
-/ecosystem-sync setup      # Guided first-time walkthrough
+Склонируй репозиторий https://github.com/2030ai/2030ai-claudecode-allecosystem-sync.git
+как скилл ecosystem-sync в ~/.claude/skills/ecosystem-sync.
+Если директория уже существует — сделай git pull.
 ```
 
-### Standalone Audit (no Claude needed)
-
-```bash
-~/.claude/skills/ecosystem-sync/scripts/ecosystem-doctor.sh
-# or with JSON output:
-~/.claude/skills/ecosystem-sync/scripts/ecosystem-doctor.sh --json
-```
-
-Use the script as a diagnostic helper. Treat [`SKILL.md`](SKILL.md) as the canonical definition of what sync should do.
-
-## What Gets Synced
-
-### Skills (via symlinks)
-
-Global custom skills from `~/.claude/skills/` get symlinked to Cursor and Codex global skill directories. Project-local skills from `<project>/.claude/skills/` stay project-local and get mirrored into `<project>/.cursor/skills/` and `<project>/.codex/skills/`. Built-in/native skills for each platform are never touched.
+После установки скилл доступен как слеш-команда в **Claude Code** (CLI и Desktop):
 
 ```
-~/.claude/skills/my-skill/        ← source of truth
-~/.cursor/skills-cursor/my-skill  → symlink to above
-~/.codex/skills/my-skill          → symlink to above
+/ecosystem-sync audit      # Проверить, что не синхронизировано (только чтение)
+/ecosystem-sync sync       # Исправить пробелы (только добавление)
 ```
 
-Project-local parity:
+> В Codex и Cursor слеш-команды недоступны — установочный промпт выполнит клонирование, а дальше используйте one-shot промпт (ниже) или попросите агента прочитать и выполнить SKILL.md из склонированной директории.
+
+### Одноразовый запуск (без установки)
+
+Если не хотите устанавливать скилл, дайте агенту этот промпт — он склонирует репо во временную директорию, выполнит аудит и удалит за собой:
 
 ```
-~/Developer/my-project/.claude/skills/my-skill/   ← source of truth
-~/Developer/my-project/.cursor/skills/my-skill    → symlink to above
-~/Developer/my-project/.codex/skills/my-skill     → symlink to above
+Склонируй https://github.com/2030ai/2030ai-claudecode-allecosystem-sync.git в temp/ecosystem-sync.
+Прочитай temp/ecosystem-sync/SKILL.md и выполни его инструкции в режиме audit —
+проверь синхронизацию скиллов и MCP-серверов между Claude Code, Cursor и Codex.
+Справочные файлы лежат в temp/ecosystem-sync/references/.
+После завершения удали temp/ecosystem-sync.
 ```
 
-### MCP Servers (via config entries)
+## Что синхронизируется
 
-| Transport | CLI → Cursor | CLI → Codex |
+### Скиллы (через симлинки)
+
+Глобальные пользовательские скиллы из `~/.claude/skills/` получают симлинки в директории скиллов Cursor и Codex. Проектные скиллы из `<проект>/.claude/skills/` остаются локальными и зеркалируются в `<проект>/.cursor/skills/` и `<проект>/.codex/skills/`. Встроенные/нативные скиллы каждой платформы не затрагиваются.
+
+```
+~/.claude/skills/my-skill/        ← источник истины
+~/.cursor/skills-cursor/my-skill  → симлинк на него
+~/.codex/skills/my-skill          → симлинк на него
+```
+
+Проектная паритетность:
+
+```
+~/Developer/my-project/.claude/skills/my-skill/   ← источник истины
+~/Developer/my-project/.cursor/skills/my-skill    → симлинк на него
+~/Developer/my-project/.codex/skills/my-skill     → симлинк на него
+```
+
+### MCP-серверы (через записи конфигурации)
+
+| Транспорт | CLI → Cursor | CLI → Codex |
 |-----------|-------------|-------------|
-| **stdio** | Direct copy (JSON→JSON) | Format conversion (JSON→TOML) |
-| **HTTP** | Copy, drop `type` field | Not supported (skipped with warning) |
+| **stdio** | Прямое копирование (JSON→JSON) | Конвертация формата (JSON→TOML) |
+| **HTTP** | Копирование, удаление поля `type` | Не поддерживается (пропускается с предупреждением) |
 
-### What Does NOT Get Synced
+### Что НЕ синхронизируется
 
-- Project instructions (`CLAUDE.md` vs `.cursorrules` vs `claude.md`) — different semantics
-- Plugins — platform-specific
-- Hooks, auto memory, plan mode — Claude Code CLI only
-- Codex trusted projects — audit only (requires manual confirmation)
+- Инструкции проекта (`CLAUDE.md` vs `.cursorrules` vs `claude.md`) — разная семантика
+- Плагины — специфичны для платформы
+- Хуки, auto memory, plan mode — только Claude Code CLI
+- Доверенные проекты Codex — только аудит (требуется ручное подтверждение)
 
-## Supported Platforms
+## Поддерживаемые платформы
 
-| Platform | Config | Skills | MCP Format |
+| Платформа | Конфигурация | Скиллы | Формат MCP |
 |----------|--------|--------|------------|
 | Claude Code CLI/Desktop | `~/.claude.json` | `~/.claude/skills/` | JSON |
-| Cursor | `~/.cursor/mcp.json` | `~/.cursor/skills-cursor/` and `<project>/.cursor/skills/` | JSON |
-| Codex CLI | `~/.codex/config.toml` | `~/.codex/skills/` and `<project>/.codex/skills/` | TOML |
+| Cursor | `~/.cursor/mcp.json` | `~/.cursor/skills-cursor/` и `<проект>/.cursor/skills/` | JSON |
+| Codex CLI | `~/.codex/config.toml` | `~/.codex/skills/` и `<проект>/.codex/skills/` | TOML |
 
-Works with any combination — if you only use 2 of 3 platforms, the missing one is simply skipped.
+Работает с любой комбинацией — если вы используете только 2 из 3 платформ, отсутствующая просто пропускается.
 
-## Three Modes
+## Два режима
 
-### `audit` (default)
+### `audit` (по умолчанию)
 
-Read-only scan. Shows a table of all skills and MCP servers with their sync status across platforms:
+Сканирование в режиме «только чтение». Показывает таблицу всех скиллов и MCP-серверов с их статусом синхронизации по платформам:
 
-- `synced` — present and correctly linked
-- `MISSING` — exists in CLI but not in target platform
-- `native-skip` — built-in platform skill, intentionally skipped
-- `unsupported` — HTTP MCP in Codex (not supported by platform)
+- `synced` — присутствует и правильно слинкован
+- `MISSING` — есть в CLI, но отсутствует в целевой платформе
+- `native-skip` — встроенный скилл платформы, намеренно пропущен
+- `unsupported` — HTTP MCP в Codex (не поддерживается платформой)
 
-Project-local skills are audited separately from global ones so you can spot parity gaps inside a specific repository without polluting the global skill namespace.
+Проектные скиллы аудитируются отдельно от глобальных — можно обнаружить пробелы в паритетности внутри конкретного репозитория, не засоряя глобальное пространство имён.
 
 ### `sync`
 
-Creates missing symlinks and adds missing config entries. **Additive only** — never deletes anything.
+Создаёт недостающие симлинки и добавляет отсутствующие записи конфигурации. **Только добавление** — ничего не удаляет.
 
-Add `--dry-run` or say "preview" to see what would change without making changes.
+Добавьте `--dry-run` или скажите «preview», чтобы увидеть, что изменится, без внесения изменений.
 
-### `setup`
+## Безопасность
 
-Guided walkthrough for first-time setup. Explains each concept, shows current state, asks for confirmation before syncing.
+- **Только добавление:** никогда не удаляет файлы, симлинки или записи конфигурации
+- **Нативные скиллы защищены:** встроенные скиллы каждой платформы не модифицируются
+- **Токены замаскированы:** API-ключи и токены никогда не отображаются (`<TOKEN>`)
+- **Требуется разрешение:** все записи в конфигурацию запрашивают подтверждение пользователя
+- **Некорректные конфигурации:** отображаются, но не исправляются автоматически
 
-## Safety
+## Справочная документация
 
-- **Additive only:** never deletes files, symlinks, or config entries
-- **Native skills protected:** built-in skills for each platform are never modified
-- **Tokens masked:** API keys and tokens are never displayed (`<TOKEN>`)
-- **Permission required:** all config writes ask for user confirmation first
-- **Malformed configs:** reported but never auto-repaired
+- [`references/platform-matrix.md`](references/platform-matrix.md) — Сравнение возможностей по платформам
+- [`references/mcp-format-guide.md`](references/mcp-format-guide.md) — Правила конвертации JSON ↔ TOML с примерами
+- [`references/native-skills-registry.md`](references/native-skills-registry.md) — Списки скиллов, которые нельзя трогать, по платформам
+- [`references/troubleshooting.md`](references/troubleshooting.md) — Частые проблемы и их решения
 
-## Reference Docs
+## Обновление
 
-- [`references/platform-matrix.md`](references/platform-matrix.md) — Feature comparison across all platforms
-- [`references/mcp-format-guide.md`](references/mcp-format-guide.md) — JSON ↔ TOML conversion rules with examples
-- [`references/native-skills-registry.md`](references/native-skills-registry.md) — Do-not-touch skill lists per platform
-- [`references/troubleshooting.md`](references/troubleshooting.md) — Common issues and fixes
+Скопируйте в агент:
 
-## Updating
-
-```bash
-cd ~/.claude/skills/ecosystem-sync && git pull
+```
+Обнови скилл ecosystem-sync: cd ~/.claude/skills/ecosystem-sync && git pull
 ```
 
 ## FAQ
 
-**Q: I only use Claude Code and Cursor, not Codex.**
-A: The skill auto-detects installed platforms. Codex operations are simply skipped.
+**В: Я использую только Claude Code и Cursor, без Codex.**
+О: Скилл автоматически определяет установленные платформы. Операции с Codex просто пропускаются.
 
-**Q: Can this break my existing setup?**
-A: No. It only adds symlinks and config entries. Nothing is ever deleted or overwritten.
+**В: Может ли это сломать мою текущую настройку?**
+О: Нет. Он только добавляет симлинки и записи конфигурации. Ничего не удаляется и не перезаписывается.
 
-**Q: How often should I run this?**
-A: After installing new global skills or MCP servers in Claude Code CLI, after adding/editing project-local skills in a repository, or after platform updates.
+**В: Как часто нужно запускать?**
+О: После установки новых глобальных скиллов или MCP-серверов в Claude Code CLI, после добавления/редактирования проектных скиллов в репозитории или после обновления платформ.
 
-**Q: Does this work with Claude Code Desktop?**
-A: Yes. Claude Code Desktop uses the same config files as CLI — no separate sync needed.
+**В: Работает ли с Claude Code Desktop?**
+О: Да. Claude Code Desktop использует те же файлы конфигурации, что и CLI — отдельная синхронизация не нужна.
 
-**Q: What about per-project MCP servers and skills?**
-A: The skill audits and syncs both project-level `.mcp.json` files and project-local `.claude/skills/*` directories to Cursor and Codex equivalents.
+**В: Что насчёт проектных MCP-серверов и скиллов?**
+О: Скилл аудитирует и синхронизирует как проектные файлы `.mcp.json`, так и проектные директории `.claude/skills/*` в аналоги Cursor и Codex.
 
-## Contributing
+## Участие в разработке
 
-1. Fork the repository
-2. Update native skill lists in `references/native-skills-registry.md` if platforms added new built-in skills
-3. Submit a PR
+1. Сделайте форк репозитория
+2. Обновите списки нативных скиллов в `references/native-skills-registry.md`, если платформы добавили новые встроенные скиллы
+3. Отправьте PR
 
-## License
+> **О языке:** README на русском — для пользователей. SKILL.md и `references/` на английском — это инструкции для AI-агентов, которые работают лучше на английском.
+
+## Лицензия
 
 MIT
