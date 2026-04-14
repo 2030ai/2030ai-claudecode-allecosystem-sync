@@ -154,7 +154,7 @@ while IFS= read -r skill_file; do
       cursor_status="native"
     elif [ -L "$project_dir/.cursor/skills/$name" ]; then
       target=$(readlink "$project_dir/.cursor/skills/$name" 2>/dev/null || echo "")
-      if [[ "$target" == "$project_dir/.claude/skills/$name" ]]; then
+      if [[ "$target" == *"/.claude/skills/$name" || "$target" == *"/.claude/skills/$name/" ]]; then
         cursor_status="synced"
       else
         cursor_status="WRONG"
@@ -173,7 +173,7 @@ while IFS= read -r skill_file; do
       codex_status="native"
     elif [ -L "$project_dir/.codex/skills/$name" ]; then
       target=$(readlink "$project_dir/.codex/skills/$name" 2>/dev/null || echo "")
-      if [[ "$target" == "$project_dir/.claude/skills/$name" ]]; then
+      if [[ "$target" == *"/.claude/skills/$name" || "$target" == *"/.claude/skills/$name/" ]]; then
         codex_status="synced"
       else
         codex_status="WRONG"
@@ -197,7 +197,7 @@ while IFS= read -r skill_file; do
     [[ "$codex_status" == "-" ]] && x_color="$GRAY"
     printf "%-24s %-24s ${c_color}%-10s${RESET} ${x_color}%-10s${RESET}\n" "$project_name" "$name" "$cursor_status" "$codex_status"
   fi
-done < <(find "$HOME/Developer" -path "*/.claude/skills/*/SKILL.md" -not -path "*/.claude/worktrees/*" -type f 2>/dev/null | sort)
+done < <(find "$HOME/Developer" -path "*/.claude/skills/*/SKILL.md" -not -path "*/.claude/worktrees/*" -type f 2>/dev/null | sort || true)
 
 GAPS=$((GAPS + PROJECT_SKILLS_GAPS))
 
@@ -315,7 +315,7 @@ for project_dir in "$HOME"/Developer/*/; do
 
   if [ -L "$claude_md" ]; then
     target=$(readlink "$claude_md" 2>/dev/null || echo "")
-    if [[ "$target" == "AGENTS.md" || "$target" == "$project_dir/AGENTS.md" || "$target" == *"/AGENTS.md" ]]; then
+    if [[ "$target" == "AGENTS.md" || "$target" == "./AGENTS.md" || "$target" == "$project_dir/AGENTS.md" ]]; then
       status="symlinked"
     else
       status="WRONG-TARGET"
