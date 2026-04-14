@@ -40,6 +40,20 @@ rm ~/.codex/skills/atlas  # example: atlas is Codex-native
 
 This should not happen with ecosystem-sync (it skips native skills), but if you manually created symlinks, remove them.
 
+### Project-local skills not appearing in Codex or Cursor
+
+**Symptom:** Skills in `<project>/.claude/skills/` exist but Codex/Cursor in that project don't see them.
+
+**Causes & Fixes:**
+1. **Symlinks never created:** Run `/ecosystem-sync sync` — it creates `<project>/.codex/skills/<name>` and `<project>/.cursor/skills/<name>` symlinks pointing to the Claude source.
+2. **Worktree false positives:** If the doctor audit shows hundreds of MISSING project skills from `agent-*` directories, update to the latest ecosystem-doctor.sh which excludes `.claude/worktrees/` paths.
+3. **Codex not reading AGENTS.md:** Ensure `~/.codex/config.toml` has `project_doc_fallback_filenames = ["claude.md", "agents.md"]` — without `agents.md`, Codex won't load project instructions that reference skills.
+4. **Verify manually:**
+   ```bash
+   ls -la <project>/.codex/skills/
+   # Should show symlinks pointing to <project>/.claude/skills/<name>
+   ```
+
 ## MCP Servers
 
 ### HTTP MCP not working in Codex
