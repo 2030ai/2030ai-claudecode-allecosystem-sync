@@ -35,14 +35,13 @@ These are HARD GATES — never violate them:
 
 ## Configuration
 
-Project scan roots (override with `SCAN_ROOTS` if your projects live elsewhere):
+Project scan root (override if your projects live elsewhere):
 
 ```
-SCAN_ROOTS:
-  - ~/Developer/
+SCAN_ROOT: ~/Developer/
 ```
 
-The skill scans these directories for project-local skills and per-project MCP configs. Adjust if your projects are in a different location (e.g. `~/Projects/`, `~/src/`).
+The skill scans this directory for project-local skills and per-project MCP configs. Adjust if your projects are in a different location (e.g. `~/Projects/`, `~/src/`).
 
 ---
 
@@ -124,7 +123,7 @@ Summary: N global skills, M gaps (K Cursor + L Codex)
 ### 3a. Scan for project-local skills
 
 ```bash
-# For each directory in SCAN_ROOTS:
+# Scan SCAN_ROOT:
 find <SCAN_ROOT> -path "*/.claude/skills/*/SKILL.md" -not -path "*/.claude/worktrees/*" -type f 2>/dev/null
 ```
 
@@ -226,7 +225,7 @@ Summary: N servers, M gaps
 ### 5a. Scan projects
 
 ```bash
-# For each directory in SCAN_ROOTS:
+# Scan SCAN_ROOT:
 find <SCAN_ROOT> -maxdepth 2 -name ".mcp.json" -type f 2>/dev/null
 ```
 
@@ -306,12 +305,12 @@ For each extracted path:
 
 ```bash
 for dir in <SCAN_ROOT>/*/; do
-  [ -d "$dir/.git" ] || continue
+  [ -e "$dir/.git" ] || continue  # -e, not -d: .git can be a file in worktrees
   # Check if path is in Codex trusted projects
 done
 ```
 
-Projects in SCAN_ROOTS with `.git` that are NOT in Codex config → `MISSING`.
+Projects in SCAN_ROOT with `.git` that are NOT in Codex config → `MISSING`.
 
 ### 7d. Report
 
