@@ -6,11 +6,17 @@ Complete comparison of Claude Code CLI, Codex CLI, and Cursor for ecosystem sync
 
 | Aspect | Claude Code CLI/Desktop | Codex CLI | Cursor |
 |--------|------------------------|-----------|--------|
-| Skills directory | `~/.claude/skills/` (source of truth) | `~/.codex/skills/` | `~/.cursor/skills-cursor/` |
+| Skills directory | `~/.claude/skills/` (global source of truth) | `~/.codex/skills/` | `~/.cursor/skills-cursor/` |
 | Sync mechanism | N/A (source) | Symlinks → CLI | Symlinks → CLI |
 | Skill file format | `SKILL.md` (uppercase!) | `SKILL.md` | `SKILL.md` (uppercase required) |
 | Native skills | None (all user-installed) | ~13 built-in | ~10 built-in |
-| Project skills | `<project>/.claude/skills/` | — | `<project>/.cursor/skills/` |
+| Project skills | `<project>/.claude/skills/` (project source of truth) | `<project>/.codex/skills/` | `<project>/.cursor/skills/` |
+
+Project-local skill parity convention:
+- Claude project skill: `<project>/.claude/skills/<name>/`
+- Cursor project skill: `<project>/.cursor/skills/<name>` → symlink to Claude source
+- Codex project skill: `<project>/.codex/skills/<name>` → symlink to Claude source
+- Project-local skills stay scoped to their repository and are not promoted into global skill directories
 
 **Important:** The skill file MUST be named `SKILL.md` (uppercase). Some platforms (notably Cursor) do not detect `skill.md` (lowercase).
 
@@ -35,11 +41,15 @@ Complete comparison of Claude Code CLI, Codex CLI, and Cursor for ecosystem sync
 
 | Aspect | Claude Code CLI/Desktop | Codex CLI | Cursor |
 |--------|------------------------|-----------|--------|
-| Instructions file | `CLAUDE.md` + `AGENTS.md` | `claude.md` (lowercase, fallback) | `.cursorrules` |
-| Global instructions | `~/.claude/CLAUDE.md` | — | — |
-| Inheritance | Global → Project → Memory | — | `.cursorrules` only |
+| Instructions file | `CLAUDE.md` + `AGENTS.md` | Controlled by `project_doc_fallback_filenames` in `config.toml` | `.cursorrules` |
+| Global instructions | `~/.claude/CLAUDE.md` | `~/.codex/AGENTS.md` | — |
+| Inheritance | Global → Project → Memory | Global AGENTS.md + project fallback files | `.cursorrules` only |
 
-**Note:** Project instructions are NOT synced automatically — they have different semantics per platform. Copy manually if needed.
+**Codex project docs:** Codex reads project instructions via the `project_doc_fallback_filenames` array in `~/.codex/config.toml`. It searches for these filenames (case-insensitive on macOS) in the project root. Recommended setting: `project_doc_fallback_filenames = ["claude.md", "agents.md"]` to match Claude Code CLI behavior where both `CLAUDE.md` and `AGENTS.md` are loaded.
+
+**Recommended pattern:** Make `CLAUDE.md` a symlink to `AGENTS.md` in every project (`ln -s AGENTS.md CLAUDE.md`). This ensures all platforms that read `claude.md` (Codex via `project_doc_fallback_filenames`, Cursor via `.cursorrules` import) get the full project instructions from the single source of truth.
+
+**Note:** Project instructions are NOT synced automatically — they have different semantics per platform. The symlink pattern above is the recommended approach for cross-platform parity.
 
 ## Platform-Only Features
 
@@ -73,7 +83,8 @@ Without this, Codex will prompt for trust confirmation every time. The ecosystem
 
 | Component | Synced? | Mechanism | Notes |
 |-----------|---------|-----------|-------|
-| Custom skills | Yes | Symlinks CLI → Cursor/Codex | Skip native skills |
+| Custom skills (global) | Yes | Symlinks CLI → Cursor/Codex | Skip native skills |
+| Custom skills (project-local) | Yes | Symlinks project Claude → project Cursor/Codex | Keep repo scope |
 | Global MCP (stdio) | Yes | Config entry conversion | JSON ↔ TOML |
 | Global MCP (HTTP) | Partial | CLI → Cursor only | Codex: not supported |
 | Per-project MCP | Yes | Config entry conversion | Same rules as global |

@@ -8,7 +8,14 @@ user-invocable: true
 
 Synchronize your skills and MCP servers across Claude Code CLI, Codex CLI, and Cursor.
 
-**Source of truth:** Claude Code CLI (`~/.claude/`). Cursor and Codex receive symlinks (skills) and config entries (MCP servers).
+**Source of truth:** Claude Code CLI (`~/.claude/`).
+- Global skills: `~/.claude/skills/` → `~/.cursor/skills-cursor/` and `~/.codex/skills/`
+- Project-local skills: `<project>/.claude/skills/` → `<project>/.cursor/skills/` and `<project>/.codex/skills/`
+- MCP: Claude config remains the source; Cursor and Codex receive additive config entries
+
+**Authority boundary:**
+- This `SKILL.md` is the source of truth for sync behavior and safety rules
+- `scripts/ecosystem-doctor.sh` is an audit helper only; it must mirror this skill, not define policy
 
 **Three modes:**
 - **audit** — scan and report gaps (read-only, safe to run anytime)
@@ -57,23 +64,37 @@ Report detected platforms to the user before proceeding.
 
 ## Step 2: Skills Audit
 
-### 2a. List CLI skills (source of truth)
+### 2a. List global CLI skills (source of truth)
 
 ```bash
 ls -la ~/.claude/skills/
 ```
 
-Enumerate all entries. Each entry is a skill (directory or symlink to a directory containing SKILL.md).
+Enumerate all entries. Each entry is a skill (directory or symlink to a directory containing `SKILL.md`).
 
-### 2b. Load native skills lists
+### 2b. List project-local CLI skills
+
+```bash
+find ~/Developer -path "*/.claude/skills/*/SKILL.md" -not -path "*/.claude/worktrees/*" -type f 2>/dev/null
+```
+
+> **Note:** The `-not -path "*/.claude/worktrees/*"` filter excludes temporary agent worktree copies (`.claude/worktrees/agent-*/`) which clone the project's `.claude/` directory and are not real projects.
+
+For each match:
+- Skill source dir = `<project>/.claude/skills/<name>/`
+- Project root = parent of `.claude/`
+- Treat every `SKILL.md` as one project-local skill
+- Keep project-local skills scoped to the same project; never promote them into `~/.codex/skills/` or `~/.cursor/skills-cursor/`
+
+### 2c. Load native skills lists
 
 Read `references/native-skills-registry.md` from this skill's directory. Extract:
 - `CURSOR_NATIVE`: list of Cursor native skill names
 - `CODEX_NATIVE`: list of Codex native skill names
 
-### 2c. Check each platform
+### 2d. Check each platform
 
-For each CLI skill name:
+For each **global** CLI skill name:
 
 **Cursor check:**
 - If name is in CURSOR_NATIVE → status = `native-skip`
@@ -89,20 +110,47 @@ For each CLI skill name:
   - Exists but points elsewhere → `wrong-target`  
   - Doesn't exist → `MISSING`
 
-### 2d. Report
+For each **project-local** CLI skill name in project `<project>`:
+
+**Cursor check:**
+- If name is in CURSOR_NATIVE → status = `native-skip`
+- Else check: `ls -la <project>/.cursor/skills/<name>`
+  - Exists and is valid symlink to `<project>/.claude/skills/<name>` → `synced`
+  - Exists but points elsewhere → `wrong-target`
+  - Doesn't exist → `MISSING`
+
+**Codex check:**
+- If name is in CODEX_NATIVE → status = `native-skip`
+- Else check: `ls -la <project>/.codex/skills/<name>`
+  - Exists and is valid symlink to `<project>/.claude/skills/<name>` → `synced`
+  - Exists but points elsewhere → `wrong-target`
+  - Doesn't exist → `MISSING`
+
+### 2e. Report
 
 Display a table:
 
 ```
 ## Skills Audit
 
+### Global
 | Skill | CLI | Cursor | Codex |
 |-------|-----|--------|-------|
 | my-skill | ✅ | ✅ synced | MISSING |
 | atlas | ✅ | ✅ synced | native-skip |
 ...
 
-Summary: N skills, M gaps (K Cursor + L Codex)
+Summary: N global skills, M gaps (K Cursor + L Codex)
+```
+
+```
+### Project-Local
+| Project | Skill | Claude | Cursor | Codex |
+|---------|-------|--------|--------|-------|
+| notes-transcriber | pipelineall | ✅ | MISSING | ✅ synced |
+...
+
+Summary: N project-local skills, M gaps
 ```
 
 ---
@@ -186,6 +234,41 @@ Check if corresponding platform configs exist:
 
 ---
 
+## Step 4b: CLAUDE.md Symlink Audit
+
+For cross-platform compatibility, `CLAUDE.md` should be a symlink to `AGENTS.md` in every project that has `AGENTS.md`. This ensures Codex (which reads `claude.md` via `project_doc_fallback_filenames`) gets the full project instructions.
+
+### 4b-1. Scan projects
+
+```bash
+for project_dir in ~/Developer/*/; do
+  [ -f "$project_dir/AGENTS.md" ] || continue
+  # Check if CLAUDE.md is a symlink to AGENTS.md
+done
+```
+
+### 4b-2. Classify each project
+
+- `CLAUDE.md` is symlink → `AGENTS.md`: **symlinked**
+- `CLAUDE.md` is symlink → other target: **WRONG-TARGET**
+- `CLAUDE.md` exists but is a regular file: **not-symlinked**
+- `CLAUDE.md` doesn't exist: **MISSING**
+
+### 4b-3. Report
+
+```
+## CLAUDE.md → AGENTS.md Symlink
+| Project | Status |
+|---------|--------|
+| my-project | symlinked |
+| old-project | not-symlinked |
+...
+
+Summary: N projects, M gaps
+```
+
+---
+
 ## Step 5: Summary
 
 Combine all audit results:
@@ -195,9 +278,11 @@ Combine all audit results:
 
 Platforms: Claude Code CLI ✅, Cursor ✅, Codex ✅
 
-Skills: N total, M synced, K gaps
+Skills (global): N total, M synced, K gaps
+Skills (project-local): N total, M synced, K gaps
 MCP (global): N total, M synced, K gaps, L unsupported (HTTP in Codex)
 MCP (per-project): N projects, M synced, K gaps
+CLAUDE.md symlink: N total, M gaps
 
 → Run `/ecosystem-sync sync` to fix N gaps
    (or `/ecosystem-sync sync --dry-run` to preview)
@@ -209,7 +294,9 @@ If mode is `audit`, STOP HERE.
 
 ## Step 6: Sync Skills
 
-For each skill with status `MISSING` or `wrong-target`:
+### 6a. Global skills
+
+For each global skill with status `MISSING` or `wrong-target`:
 
 **Cursor:**
 ```bash
@@ -228,6 +315,33 @@ Verify each symlink after creation:
 ls -la ~/.cursor/skills-cursor/<name>
 # Should show: <name> -> /Users/.../.claude/skills/<name>
 ```
+
+### 6b. Project-local skills
+
+For each project-local skill `<project>/.claude/skills/<name>` with status `MISSING` or `wrong-target`:
+
+**Cursor:**
+```bash
+mkdir -p <project>/.cursor/skills
+ln -sf <project>/.claude/skills/<name> <project>/.cursor/skills/<name>
+```
+
+**Codex:**
+```bash
+mkdir -p <project>/.codex/skills
+ln -sf <project>/.claude/skills/<name> <project>/.codex/skills/<name>
+```
+
+Verification:
+```bash
+ls -la <project>/.codex/skills/<name>
+# Should show: <name> -> /Users/.../<project>/.claude/skills/<name>
+```
+
+Rules:
+- Keep scope symmetric: project-local Claude skills stay project-local in Cursor and Codex
+- Never export project-local skills into `~/.codex/skills/` or `~/.cursor/skills-cursor/`
+- Native skill names still win; skip them rather than shadowing built-ins
 
 ---
 
@@ -279,6 +393,29 @@ For each project with `.mcp.json` but missing platform configs:
 1. Read `<project>/.mcp.json`
 2. Generate `<project>/.codex/config.toml` with `[mcp_servers.*]` sections
 3. Skip HTTP servers with warning
+
+---
+
+## Step 8b: Sync CLAUDE.md Symlinks
+
+For each project with `AGENTS.md` where `CLAUDE.md` has status `MISSING` or `not-symlinked`:
+
+1. If `CLAUDE.md` is a regular file containing only `@AGENTS.md` reference and comments:
+   ```bash
+   rm <project>/CLAUDE.md
+   ln -s AGENTS.md <project>/CLAUDE.md
+   ```
+2. If `CLAUDE.md` has unique content beyond `@AGENTS.md`: skip with note — manual migration needed
+3. If `CLAUDE.md` doesn't exist:
+   ```bash
+   ln -s AGENTS.md <project>/CLAUDE.md
+   ```
+
+Verification:
+```bash
+ls -la <project>/CLAUDE.md
+# Should show: CLAUDE.md -> AGENTS.md
+```
 
 ---
 

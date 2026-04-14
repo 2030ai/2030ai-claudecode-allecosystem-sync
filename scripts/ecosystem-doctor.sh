@@ -57,6 +57,8 @@ is_native() {
 # --- Skills Audit ---
 SKILLS_TOTAL=0
 SKILLS_GAPS=0
+PROJECT_SKILLS_TOTAL=0
+PROJECT_SKILLS_GAPS=0
 
 if ! $JSON_OUTPUT; then
   echo "--- Skills ---"
@@ -123,6 +125,81 @@ for skill_path in "$HOME"/.claude/skills/*/; do
 done
 
 GAPS=$((GAPS + SKILLS_GAPS))
+
+# --- Project-Local Skills Audit ---
+if ! $JSON_OUTPUT; then
+  echo ""
+  echo "--- Skills (Project-Local) ---"
+  printf "%-24s %-24s %-10s %-10s\n" "Project" "Skill" "Cursor" "Codex"
+  printf "%-24s %-24s %-10s %-10s\n" "-------" "-----" "------" "-----"
+fi
+
+while IFS= read -r skill_file; do
+  [ -n "$skill_file" ] || continue
+
+  skill_dir=$(dirname "$skill_file")
+  name=$(basename "$skill_dir")
+  local_skills_root=$(dirname "$skill_dir")
+  claude_dot_dir=$(dirname "$local_skills_root")
+  project_dir=$(dirname "$claude_dot_dir")
+  project_name=$(basename "$project_dir")
+
+  PROJECT_SKILLS_TOTAL=$((PROJECT_SKILLS_TOTAL + 1))
+
+  cursor_status="-"
+  codex_status="-"
+
+  if $CURSOR_OK; then
+    if is_native "$name" "$CURSOR_NATIVE"; then
+      cursor_status="native"
+    elif [ -L "$project_dir/.cursor/skills/$name" ]; then
+      target=$(readlink "$project_dir/.cursor/skills/$name" 2>/dev/null || echo "")
+      if [[ "$target" == *"/.claude/skills/$name" || "$target" == *"/.claude/skills/$name/" ]]; then
+        cursor_status="synced"
+      else
+        cursor_status="WRONG"
+        PROJECT_SKILLS_GAPS=$((PROJECT_SKILLS_GAPS + 1))
+      fi
+    elif [ -d "$project_dir/.cursor/skills/$name" ]; then
+      cursor_status="copy"
+    else
+      cursor_status="MISSING"
+      PROJECT_SKILLS_GAPS=$((PROJECT_SKILLS_GAPS + 1))
+    fi
+  fi
+
+  if $CODEX_OK; then
+    if is_native "$name" "$CODEX_NATIVE"; then
+      codex_status="native"
+    elif [ -L "$project_dir/.codex/skills/$name" ]; then
+      target=$(readlink "$project_dir/.codex/skills/$name" 2>/dev/null || echo "")
+      if [[ "$target" == *"/.claude/skills/$name" || "$target" == *"/.claude/skills/$name/" ]]; then
+        codex_status="synced"
+      else
+        codex_status="WRONG"
+        PROJECT_SKILLS_GAPS=$((PROJECT_SKILLS_GAPS + 1))
+      fi
+    elif [ -d "$project_dir/.codex/skills/$name" ]; then
+      codex_status="copy"
+    else
+      codex_status="MISSING"
+      PROJECT_SKILLS_GAPS=$((PROJECT_SKILLS_GAPS + 1))
+    fi
+  fi
+
+  if ! $JSON_OUTPUT; then
+    c_color="$GREEN"; x_color="$GREEN"
+    [[ "$cursor_status" == "MISSING" || "$cursor_status" == "WRONG" ]] && c_color="$RED"
+    [[ "$codex_status" == "MISSING" || "$codex_status" == "WRONG" ]] && x_color="$RED"
+    [[ "$cursor_status" == "native" ]] && c_color="$GRAY"
+    [[ "$codex_status" == "native" ]] && x_color="$GRAY"
+    [[ "$cursor_status" == "-" ]] && c_color="$GRAY"
+    [[ "$codex_status" == "-" ]] && x_color="$GRAY"
+    printf "%-24s %-24s ${c_color}%-10s${RESET} ${x_color}%-10s${RESET}\n" "$project_name" "$name" "$cursor_status" "$codex_status"
+  fi
+done < <(find "$HOME/Developer" -path "*/.claude/skills/*/SKILL.md" -not -path "*/.claude/worktrees/*" -type f 2>/dev/null | sort || true)
+
+GAPS=$((GAPS + PROJECT_SKILLS_GAPS))
 
 # --- MCP Audit (Global) ---
 MCP_TOTAL=0
@@ -213,12 +290,64 @@ fi
 
 GAPS=$((GAPS + MCP_GAPS))
 
+# --- CLAUDE.md Symlink Audit ---
+CLAUDE_SYMLINK_TOTAL=0
+CLAUDE_SYMLINK_GAPS=0
+
+if ! $JSON_OUTPUT; then
+  echo ""
+  echo "--- CLAUDE.md → AGENTS.md Symlink ---"
+  printf "%-30s %-15s\n" "Project" "Status"
+  printf "%-30s %-15s\n" "-------" "------"
+fi
+
+for project_dir in "$HOME"/Developer/*/; do
+  [ -d "$project_dir" ] || continue
+  project_dir="${project_dir%/}"  # strip trailing slash
+  agents_md="$project_dir/AGENTS.md"
+  claude_md="$project_dir/CLAUDE.md"
+
+  # Only audit projects that have AGENTS.md
+  [ -f "$agents_md" ] || continue
+  CLAUDE_SYMLINK_TOTAL=$((CLAUDE_SYMLINK_TOTAL + 1))
+
+  project_name=$(basename "$project_dir")
+  status="unknown"
+
+  if [ -L "$claude_md" ]; then
+    target=$(readlink "$claude_md" 2>/dev/null || echo "")
+    if [[ "$target" == "AGENTS.md" || "$target" == "./AGENTS.md" || "$target" == "$project_dir/AGENTS.md" ]]; then
+      status="symlinked"
+    else
+      status="WRONG-TARGET"
+      CLAUDE_SYMLINK_GAPS=$((CLAUDE_SYMLINK_GAPS + 1))
+    fi
+  elif [ -f "$claude_md" ]; then
+    status="not-symlinked"
+    CLAUDE_SYMLINK_GAPS=$((CLAUDE_SYMLINK_GAPS + 1))
+  else
+    status="MISSING"
+    CLAUDE_SYMLINK_GAPS=$((CLAUDE_SYMLINK_GAPS + 1))
+  fi
+
+  if ! $JSON_OUTPUT; then
+    s_color="$GREEN"
+    [[ "$status" == "not-symlinked" || "$status" == "WRONG-TARGET" ]] && s_color="$YELLOW"
+    [[ "$status" == "MISSING" ]] && s_color="$RED"
+    printf "%-30s ${s_color}%-15s${RESET}\n" "$project_name" "$status"
+  fi
+done
+
+GAPS=$((GAPS + CLAUDE_SYMLINK_GAPS))
+
 # --- Summary ---
 if ! $JSON_OUTPUT; then
   echo ""
   echo "=== Summary ==="
-  echo "Skills: $SKILLS_TOTAL total, $SKILLS_GAPS gaps"
+  echo "Skills (global): $SKILLS_TOTAL total, $SKILLS_GAPS gaps"
+  echo "Skills (project-local): $PROJECT_SKILLS_TOTAL total, $PROJECT_SKILLS_GAPS gaps"
   echo "MCP:    $MCP_TOTAL total, $MCP_GAPS gaps"
+  echo "CLAUDE.md symlink: $CLAUDE_SYMLINK_TOTAL total, $CLAUDE_SYMLINK_GAPS gaps"
   echo ""
   if [ $GAPS -eq 0 ]; then
     echo -e "${GREEN}All synced!${RESET}"
@@ -238,9 +367,17 @@ else
     "total": $SKILLS_TOTAL,
     "gaps": $SKILLS_GAPS
   },
+  "project_skills": {
+    "total": $PROJECT_SKILLS_TOTAL,
+    "gaps": $PROJECT_SKILLS_GAPS
+  },
   "mcp": {
     "total": $MCP_TOTAL,
     "gaps": $MCP_GAPS
+  },
+  "claude_symlink": {
+    "total": $CLAUDE_SYMLINK_TOTAL,
+    "gaps": $CLAUDE_SYMLINK_GAPS
   },
   "total_gaps": $GAPS
 }
