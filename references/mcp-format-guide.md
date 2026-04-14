@@ -175,3 +175,13 @@ args = ["path/to/codex-wrapper.mjs"]
 ```
 
 This pattern is only needed when a server's startup behavior is incompatible with Codex. Most well-behaved MCP servers work without a wrapper.
+
+## Known Platform-Specific Divergences
+
+Some MCP servers intentionally have different `command`/`args` across platforms. This is expected — sync checks by server key presence, not by comparing launch parameters.
+
+| Server | Claude Code | Codex | Reason |
+|--------|-----------|-------|--------|
+| `zvasilpublishbot` | Direct: `node .../dist/index.js` | Wrapper: `node .../codex-wrapper.mjs` | Server writes startup logs to stdout; Codex strict stdio client rejects non-MCP output before handshake |
+
+When auditing, treat these as `synced` (key exists in both configs), not as divergence requiring fix.
