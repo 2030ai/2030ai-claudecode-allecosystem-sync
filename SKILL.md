@@ -124,7 +124,7 @@ Summary: N global skills, M gaps (K Cursor + L Codex)
 
 ```bash
 # Scan SCAN_ROOT:
-find <SCAN_ROOT> -path "*/.claude/skills/*/SKILL.md" -not -path "*/.claude/worktrees/*" -type f 2>/dev/null
+find <SCAN_ROOT> -path "*/.claude/skills/*" -iname "skill.md" -not -path "*/.claude/worktrees/*" -type f 2>/dev/null
 ```
 
 > **Note:** The `-not -path "*/.claude/worktrees/*"` filter excludes temporary agent worktree copies (`.claude/worktrees/agent-*/`) which clone the project's `.claude/` directory and are not real projects.
