@@ -102,25 +102,34 @@ Remove the `type` field. Cursor infers HTTP from the presence of `url`.
 }
 ```
 
-### CLI → Codex
+### CLI → Codex (JSON → TOML)
 
-**Not supported.** Codex CLI does not support HTTP MCP servers — it only handles stdio transport.
+Codex supports HTTP MCP servers with `url` and `http_headers`.
 
-When encountering an HTTP MCP server during sync, skip it and report:
+**CLI:**
+```json
+"my-server": {
+  "type": "http",
+  "url": "https://api.example.com/mcp",
+  "headers": {
+    "Authorization": "Bearer <TOKEN>"
+  }
+}
 ```
-⚠️ Skipped: my-server (HTTP MCP not supported in Codex CLI)
-```
 
-### Codex HTTP Format (Future Reference)
-
-If Codex adds HTTP support in the future, the expected TOML format would be:
+**Codex TOML:**
 ```toml
 [mcp_servers.my-server]
 url = "https://api.example.com/mcp"
-
-[mcp_servers.my-server.http_headers]
-Authorization = "Bearer <TOKEN>"
+http_headers = { "Authorization" = "Bearer <TOKEN>" }
 ```
+
+**Rules:**
+- `url` → `url = "value"`
+- `headers` object → `http_headers = { "Header" = "value" }`
+- `type: "http"` → omit in Codex TOML
+- If the CLI entry has no `headers`, omit `http_headers`
+- If a Codex section already exists, add only missing required fields; do not rewrite existing values
 
 ## Per-Project MCP
 
@@ -182,6 +191,6 @@ Some MCP servers intentionally have different `command`/`args` across platforms.
 
 | Server | Claude Code | Codex | Reason |
 |--------|-----------|-------|--------|
-| `zvasilpublishbot` | Direct: `node .../dist/index.js` | Wrapper: `node .../codex-wrapper.mjs` | Server writes startup logs to stdout; Codex strict stdio client rejects non-MCP output before handshake |
+| `my-noisy-server` | Direct: `node .../dist/index.js` | Wrapper: `node .../codex-wrapper.mjs` | Server writes startup logs to stdout; Codex strict stdio client rejects non-MCP output before handshake |
 
 When auditing, treat these as `synced` (key exists in both configs), not as divergence requiring fix.

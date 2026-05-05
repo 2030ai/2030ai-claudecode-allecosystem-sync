@@ -3,3 +3,5 @@
 *.swo
 *~
 .env
+__pycache__/
+*.pyc
