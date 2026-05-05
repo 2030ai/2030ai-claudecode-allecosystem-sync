@@ -2,16 +2,16 @@
 
 ## Описание проекта
 
-**2030ai-claudecode-allecosystem-sync** — исходник скилла `ecosystem-sync`. Синхронизирует скиллы и MCP-серверы между Claude Code CLI, Cursor и Codex CLI. Claude Code — источник истины; Cursor и Codex получают симлинки и аддитивные записи конфигов.
+**2030ai-claudecode-allecosystem-sync** — исходник инструкции `ecosystem-sync`. Синхронизирует скиллы, MCP-серверы и agent context между Claude Code CLI, Cursor и Codex App/CLI. Claude Code — источник истины; Cursor и Codex получают симлинки и аддитивные записи конфигов.
 
-Клонируется как `~/.claude/skills/ecosystem-sync`. Пользователи устанавливают скилл через `git clone` (см. README.md).
+Основной сценарий: пользователь даёт Codex App ссылку на репозиторий и просит выполнить `ecosystem-sync` (см. README.md и PROMPT.md). Установка как slash skill в `~/.claude/skills/ecosystem-sync` остаётся дополнительным вариантом.
 
 ## Связанные ресурсы
 
 - **SKILL.md** — сам скилл (на английском, для AI-агентов). Единственная точка входа в логику.
-- **README.md** — для людей (русский), краткое описание.
+- **README.md** — для людей (русский), основной one-prompt запуск.
+- **PROMPT.md** — короткий copy-paste промпт для Codex App.
 - **references/** — platform-matrix, mcp-format-guide, native-skills-registry, troubleshooting.
-- **Экосистема (ЦУП):** `~/Developer/zvasil-claude-ecosystem/agent_docs/ecosystem-sync-matrix.md` — матрица статусов синка по платформам, живой аудит.
 
 ## Правила разработки скилла
 
@@ -22,7 +22,7 @@
   - Нативные скиллы платформ не перезаписывать.
 - Языковой режим: SKILL.md и `references/` — на английском. README.md — на русском.
 - Изменения в логике синка — сначала обновлять `references/platform-matrix.md`, если появилась новая платформа или изменился путь.
-- Перед коммитом — прогон `/ecosystem-sync audit` (read-only, безопасно) на собственной машине: скилл должен успешно отработать на чистой установке.
+- Перед коммитом — прогон read-only audit/dry-run по `SKILL.md` или установленному `/ecosystem-sync audit`: инструкция должна отработать без записи на чистой установке.
 
 ## CRITICAL: Использовать встроенные инструменты вместо Bash-команд
 

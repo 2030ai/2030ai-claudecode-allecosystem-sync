@@ -21,8 +21,8 @@ Common issues and solutions when syncing the Claude Code ecosystem.
 ```bash
 # Remove broken symlink
 rm ~/.cursor/skills-cursor/broken-skill
-# Re-create pointing to current location
-ln -sf ~/.claude/skills/broken-skill ~/.cursor/skills-cursor/broken-skill
+# Re-create pointing to current location (POSIX example)
+ln -s ~/.claude/skills/broken-skill ~/.cursor/skills-cursor/broken-skill
 ```
 
 Or just re-run `/ecosystem-sync sync`.
@@ -45,22 +45,40 @@ This should not happen with ecosystem-sync (it skips native skills), but if you 
 **Symptom:** Skills in `<project>/.claude/skills/` exist but Codex/Cursor in that project don't see them.
 
 **Causes & Fixes:**
-1. **Symlinks never created:** Run `/ecosystem-sync sync` — it creates `<project>/.codex/skills/<name>` and `<project>/.cursor/skills/<name>` symlinks pointing to the Claude source.
-2. **Worktree false positives:** If the audit shows hundreds of `MISSING` project skills from `agent-*` directories, make sure you are using the latest version of the skill — it excludes `.claude/worktrees/` paths.
+1. **Symlinks never created:** Run `/ecosystem-sync sync` — it creates `<project>/.agents/skills/<name>` and `<project>/.cursor/skills/<name>` symlinks pointing to the Claude source.
+2. **Old Codex root:** `<project>/.codex/skills/` is legacy for project-local skills. New sync runs create only `<project>/.agents/skills/`.
 3. **Codex not reading AGENTS.md:** Ensure `~/.codex/config.toml` has `project_doc_fallback_filenames = ["claude.md", "agents.md"]` — without `agents.md`, Codex won't load project instructions that reference skills.
-4. **Verify manually:**
+4. **Global-name conflict:** If a project-local skill has the same name as a global skill, ecosystem-sync skips it unless allowlisted to avoid duplicate slash-command entries.
+5. **Verify manually:**
    ```bash
-   ls -la <project>/.codex/skills/
-   # Should show symlinks pointing to <project>/.claude/skills/<name>
+   ls -la <project>/.agents/skills/
+   # Should show symlinks like: <name> -> ../../.claude/skills/<name>
    ```
+
+### Duplicate Codex project-local skill
+
+**Symptom:** Audit reports `DUPLICATE_CODEX_PROJECT_SKILL`.
+
+**Cause:** The same valid project-local skill is visible from both current `<project>/.agents/skills/<name>` and legacy `<project>/.codex/skills/<name>`.
+
+**Fix:** Verify the `.agents/skills/<name>` symlink resolves to `<project>/.claude/skills/<name>`. Then handle legacy cleanup explicitly outside normal sync. Ordinary `/ecosystem-sync sync` reports legacy entries but does not remove them.
 
 ## MCP Servers
 
 ### HTTP MCP not working in Codex
 
-**This is expected.** Codex CLI does not support HTTP transport for MCP servers. Only stdio (command-based) servers work in Codex. The ecosystem-sync skill skips HTTP servers for Codex and shows a warning.
+Codex supports HTTP MCP servers through TOML `url` and `http_headers` fields. If an HTTP server works in Claude Code but not Codex, check the generated Codex section:
 
-**Workaround:** If you need the HTTP MCP's functionality in Codex, check if the server also offers a stdio transport option (some servers support both).
+```toml
+[mcp_servers.my-server]
+url = "https://api.example.com/mcp"
+http_headers = { "Authorization" = "Bearer <TOKEN>" }
+```
+
+**Fixes:**
+1. Ensure `url` exists and matches the Claude `url`.
+2. Ensure Claude `headers` were converted to Codex `http_headers`.
+3. Ensure CLI-only `type = "http"` was not copied into Codex TOML.
 
 ### Codex MCP server fails to start
 
@@ -110,6 +128,8 @@ chmod 644 ~/.cursor/mcp.json
 chmod 644 ~/.codex/config.toml
 ```
 
+On Windows, use file properties, ACL tools, or an elevated shell instead of `chmod`.
+
 ### Tokens visible in output
 
 **Symptom:** API keys or tokens displayed during audit.
@@ -136,6 +156,11 @@ All sync operations are additive (symlinks and config entries). To undo:
 ```bash
 # Remove skill symlinks (example for Cursor)
 for link in ~/.cursor/skills-cursor/*; do
+  [ -L "$link" ] && rm "$link"
+done
+
+# Remove project-local mirrors (example for one project)
+for link in <project>/.cursor/skills/* <project>/.agents/skills/*; do
   [ -L "$link" ] && rm "$link"
 done
 
