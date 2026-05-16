@@ -111,6 +111,40 @@ http_headers = { "Authorization" = "Bearer <TOKEN>" }
 2. **Environment variables:** Compare `env` sections between platform configs. A missing env var can cause silent failures.
 3. **Working directory:** If the server uses relative paths, the `cwd` field might be needed.
 
+## Hooks, Commands, Subagents, Memory
+
+### Claude hook was not migrated automatically
+
+**Cause:** Codex supports hooks, but hook event coverage, matcher behavior, blocking semantics, and trusted-hook review differ from Claude Code.
+
+**Fix:** Treat the hook as `hook-partial` until reviewed. Migrate only command hooks that have a clear Codex event/matcher target, and place them in one Codex hook representation per config layer: either `hooks.json` or inline `[hooks]`.
+
+### Claude slash command appears in audit
+
+**Policy:** Do not recreate it as a slash command. Convert behavior into a skill when it is still useful.
+
+**Fix:** Create a `SKILL.md` with a clear trigger description and preserve unsupported command runtime assumptions as caveats, such as argument interpolation, shell expansion, or tool hints.
+
+### Claude subagent does not map cleanly
+
+**Cause:** Codex supports custom agents, but Claude tool permissions, hooks, memory, background behavior, and routing assumptions may not map exactly.
+
+**Fix:** Create a Codex custom agent only after review. Keep unsupported Claude-only semantics as notes in `developer_instructions` instead of pretending they are enforced.
+
+### MEMORY.md exists but Codex does not use it
+
+Codex Memories are not a direct file replacement for Claude `MEMORY.md`. They are a local recall layer when enabled and available.
+
+**Fix:**
+1. Move durable project/team rules into `AGENTS.md` or checked-in docs after review.
+2. Put personal recurring preferences in `~/.codex/AGENTS.md` only if they must always apply.
+3. Suggest enabling Codex Memories for helpful recall, but do not write directly into `~/.codex/memories/`.
+4. Ignore or archive stale/sensitive memory entries instead of promoting them.
+
+### Recent Claude sessions need to carry over
+
+Prefer the Codex app import flow for recent sessions. If that is not available or the user wants selective migration, summarize only user-selected sessions into project docs or `AGENTS.md`. Do not bulk-copy transcript files into Codex.
+
 ## Configs
 
 ### Permission denied writing config
