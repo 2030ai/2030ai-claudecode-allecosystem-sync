@@ -8,7 +8,8 @@
 
 Цель: обеспечить полную работоспособность моей экосистемы Claude Code в Codex App.
 Проверь и при необходимости синхронизируй глобальные и project-local skills, MCP-серверы,
-AGENTS/CLAUDE instructions, Codex trusted projects и связанные элементы памяти/контекста.
+AGENTS/CLAUDE instructions, hooks, subagents, recent sessions, Codex trusted projects
+и связанные элементы памяти/контекста.
 
 Сначала сделай audit/dry-run и покажи короткий список действий.
 Записи в конфиги выполняй только после моего подтверждения.

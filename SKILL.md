@@ -1,6 +1,6 @@
 ---
 name: ecosystem-sync
-description: "Cross-platform sync for Claude Code ecosystem. Audit or sync skills, MCP servers, project instructions, and Codex readiness across Claude Code CLI/Desktop, Codex App/CLI, and Cursor. Use when the user links this repository in Codex App, asks to make Claude Code ecosystem work in Codex, checks cross-platform setup, audits skills/MCP across platforms, or mentions ecosystem-sync."
+description: "Cross-platform migration and sync for Claude Code ecosystem. Audit or sync skills, MCP servers, instructions, hooks, subagents, memory/context, recent sessions, and Codex readiness across Claude Code CLI/Desktop, Codex App/CLI, and Cursor. Use when the user links this repository in Codex App, asks to make Claude Code ecosystem work in Codex, checks cross-platform setup, audits skills/MCP across platforms, or mentions ecosystem-sync."
 user-invocable: true
 ---
 
@@ -13,13 +13,30 @@ Synchronize your Claude Code ecosystem across Claude Code CLI/Desktop, Codex App
 - Project-local skills: `<project>/.claude/skills/` → `<project>/.cursor/skills/` and `<project>/.agents/skills/`
 - MCP: Claude config remains the source; Cursor and Codex receive additive config entries
 - Project instructions/context: audit `AGENTS.md`, `CLAUDE.md`, project docs, and Codex trust settings
-- Memory and platform-only features: audit and report how to preserve usable context in Codex; do not auto-copy opaque memory files
+- Hooks, command sources, subagents, recent sessions, memory, and platform-only features: audit and report how to preserve usable behavior in Codex; migrate only safe additive pieces after review
 
 **Two modes:**
 - **audit** — scan and report gaps (read-only, safe to run anytime)
 - **sync** — create missing symlinks and config entries (additive only)
 
 **Default:** If the user doesn't specify a mode, run `audit`.
+
+**Design intent:** This is an agent-guided public skill, not a deterministic converter. Use the procedures below to decide what is safe in the user's environment. Helper scripts are optional guardrails, not the migration engine.
+
+## Migration Surface Coverage
+
+Cover the same broad setup areas users expect from a Claude Code → Codex move:
+
+| Source area | Codex target | Default action |
+| --- | --- | --- |
+| Skills | `~/.codex/skills/` and `<project>/.agents/skills/` | Sync symlinks, skip native/drift |
+| MCP | `~/.codex/config.toml` and project `.codex/config.toml` | Add missing entries after confirmation |
+| Instructions | `~/.codex/AGENTS.md`, project `AGENTS.md`, `CLAUDE.md` symlink | Audit and propose minimal patches |
+| Hooks | `hooks.json` or inline `[hooks]` in Codex config layers | Audit, migrate only reviewed command hooks |
+| Claude slash commands | Codex skills | Convert behavior into skills only; do not create slash-command shims |
+| Subagents | `~/.codex/agents/*.toml` or `<project>/.codex/agents/*.toml` | Audit and propose custom-agent TOML |
+| Recent sessions | Codex app import flow or manual context summary | Audit only; do not bulk-copy transcripts |
+| Memory / `MEMORY.md` | `AGENTS.md`, checked-in docs, or Codex Memories | Promote durable rules with review; never write memory internals |
 
 ## Direct Codex App Launch
 
@@ -36,6 +53,7 @@ Natural-language requests such as "make my Claude Code ecosystem work in Codex A
 - Audit global user-level setup.
 - Audit the current project.
 - Audit project-local skills under `SCAN_ROOT` when useful.
+- Audit hooks, command sources, subagents, recent sessions, and memory/context sources.
 - Sync only safe additive gaps after confirmation.
 - Report unsupported or platform-only items with practical Codex equivalents.
 
@@ -49,6 +67,8 @@ These are HARD GATES — never violate them:
 - Never log, display, or write tokens/API keys — always show as `<TOKEN>`
   - Token patterns: strings containing `sk-`, `Bearer `, `AQ.`, bot tokens matching `\d+:AA`, long hex/base64 strings
 - Never modify `~/.codex/auth.json`
+- Never write directly into `~/.codex/memories/`; Codex owns that storage. Propose `AGENTS.md`, checked-in docs, or enabling Codex Memories instead.
+- Never create slash-command shims for Claude commands. If a command should survive, convert its behavior into a skill.
 - MCP sync checks primarily by server key presence. Only validate required fields for that server type; platform-specific command/args divergences (e.g. wrapper scripts in Codex) are expected and valid
 - If a config file cannot be parsed, STOP and report the error — do not attempt repair
 - Replace absolute home paths with `~/` in all displayed output
@@ -400,30 +420,45 @@ Summary: N total, M stale, K missing
 
 ---
 
-## Step 7b: Context and Memory Readiness Audit
+## Step 7b: Migration Surface Readiness Audit
 
-Claude Code memory and hooks do not have a direct Codex equivalent. Audit them so the user knows what will and will not carry over.
+Audit the Claude-specific surfaces that do not fit the normal skills/MCP/instructions path cleanly. Codex supports some of them natively, but semantics are not 1:1.
 
 Check, when present:
 - Global instructions: `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`
 - Project instructions: `<project>/AGENTS.md`, `<project>/CLAUDE.md`, `.cursorrules`
-- Project docs that contain agent context: `agent_docs/`, `docs/`, `memory/`, `MEMORY.md`
-- Claude-only config/features: hooks, status line, output style, auto-memory files
+- Memory/context sources:
+  - Global: `~/.claude/MEMORY.md`, `~/.claude/memory/`, `~/.claude/projects/**/MEMORY.md`, stable sections in `~/.claude/CLAUDE.md`
+  - Project: `<project>/MEMORY.md`, `<project>/memory/`, `<project>/.claude/MEMORY.md`, `<project>/.claude/memory/`, `agent_docs/`, `docs/`
+- Hooks: `~/.claude/settings.json`, `~/.claude/settings.local.json`, `<project>/.claude/settings.json`, and any plugin/skill hook notes
+- Claude command sources: `~/.claude/commands/`, `<project>/.claude/commands/`, plugin `commands/`
+- Subagents: `~/.claude/agents/`, `<project>/.claude/agents/`
+- Recent sessions: recent Claude transcript/session files such as `~/.claude/projects/**/*.jsonl`
+- Other Claude-only features: status line, output style, language preference, plan/worktree assumptions
 
 Rules:
-- Do not auto-copy memory files into Codex config.
-- Do not merge memory into `AGENTS.md` unless the user explicitly asks and reviews the proposed text.
-- If critical project behavior exists only in Claude memory, report it as `memory-promotion-candidate`.
+- Do not auto-copy memory files into Codex config or `~/.codex/memories/`.
+- Codex Memories are the closest local recall analogue for personal preferences, recurring workflows, tech stacks, conventions, and known pitfalls, but they are off by default in some regions and are not a required-rules store. Durable team/project rules belong in `AGENTS.md` or checked-in docs.
+- Do not merge memory into `AGENTS.md` or project docs unless the user explicitly asks and reviews the proposed text.
+- If critical project behavior exists only in Claude memory or sessions, report it as `memory-promotion-candidate`.
 - If Codex already reads equivalent instructions via `AGENTS.md` or `CLAUDE.md`, report `context-covered`.
+- For hooks, report `hook-direct`, `hook-partial`, or `hook-unsupported`. Codex can load hooks from `hooks.json` or inline `[hooks]` config; only migrate reviewed command hooks whose event, matcher, and blocking semantics are understood.
+- For Claude commands, report `command-to-skill-candidate`. Convert into `SKILL.md` instructions if the behavior should survive; do not preserve slash-command-specific runtime assumptions as executable behavior.
+- For subagents, report `subagent-candidate`. If the user confirms, create additive Codex custom-agent TOML under the appropriate `agents/` directory and preserve tool/permission differences as review notes.
+- For recent sessions, report `recent-session-context`. Prefer the Codex app import flow for bulk recent-session migration; otherwise summarize only user-selected sessions.
 
 Report:
 
 ```
-## Context and Memory Readiness
-| Scope | Source | Codex status | Action |
-|-------|--------|--------------|--------|
-| global | ~/.claude/CLAUDE.md | covered by ~/.codex/AGENTS.md | none |
-| my-project | memory/MEMORY.md | memory-promotion-candidate | propose AGENTS.md patch |
+## Migration Surface Readiness
+| Scope | Type | Source | Codex status | Action |
+|-------|------|--------|--------------|--------|
+| global | memory | ~/.claude/MEMORY.md | memory-promotion-candidate | propose ~/.codex/AGENTS.md or docs patch |
+| my-project | memory | memory/MEMORY.md | memory-promotion-candidate | propose AGENTS.md patch |
+| my-project | hook | .claude/settings.json PreToolUse | hook-partial | review Codex hooks semantics |
+| my-project | command | .claude/commands/release.md | command-to-skill-candidate | convert into a skill |
+| my-project | subagent | .claude/agents/reviewer.md | subagent-candidate | propose .codex/agents/reviewer.toml |
+| my-project | session | recent Claude transcript | recent-session-context | use Codex import or summarize selected context |
 ...
 ```
 
@@ -444,7 +479,7 @@ MCP (global): N total, M synced, K gaps, L incomplete
 MCP (per-project): N projects, M synced, K gaps
 CLAUDE.md symlink: N total, M gaps
 Codex trusted projects: N total, M stale, K missing
-Context/memory: N covered, M promotion candidates, K Claude-only
+Migration surfaces: N covered, M candidates, K manual-review, L unsupported
 
 → Run `/ecosystem-sync sync` to fix N gaps
    (or `/ecosystem-sync sync --dry-run` to preview)
@@ -594,6 +629,18 @@ Verification:
 ls -la <project>/CLAUDE.md
 # Should show: CLAUDE.md -> AGENTS.md
 ```
+
+---
+
+## Step 12b: Optional Follow-Up Migrations
+
+Run this only when the user confirms specific items from the readiness audit.
+
+- **Memory/context:** Draft concise patches for `AGENTS.md`, `~/.codex/AGENTS.md`, or checked-in docs. Keep local/user preference material separate from team rules. Suggest enabling Codex Memories for recall, but do not edit `~/.codex/memories/`.
+- **Hooks:** Add reviewed Codex hooks to `~/.codex/hooks.json`, `<project>/.codex/hooks.json`, or inline config. Prefer one hook representation per layer. Mark migrated hooks `manual-review` when Claude behavior was broader than Codex behavior.
+- **Command sources:** Create or update skills, not slash commands. A Claude command becomes a skill with a clear trigger description, preserved caveats, and any helper references/scripts needed for the workflow.
+- **Subagents:** Create additive custom-agent TOML only when the user approves the target scope. Do not overwrite existing agent files. Preserve Claude-only tool restrictions, permission modes, hooks, memory, or background behavior as notes in `developer_instructions` when they cannot be mapped safely.
+- **Recent sessions:** Do not bulk-copy transcript files. Use the Codex app import flow for recent sessions when available, or summarize selected sessions into docs after the user chooses them.
 
 ---
 
