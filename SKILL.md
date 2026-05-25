@@ -8,9 +8,9 @@ user-invocable: true
 
 Synchronize your Claude Code ecosystem across Claude Code CLI/Desktop, Codex App/CLI, and Cursor.
 
-**Source of truth:** Claude Code CLI (`~/.claude/`).
-- Global skills: `~/.claude/skills/` → `~/.cursor/skills-cursor/` and `~/.codex/skills/`
-- Project-local skills: `<project>/.claude/skills/` → `<project>/.cursor/skills/` and `<project>/.agents/skills/`
+**Source of truth:**
+- Global skills: Claude Code CLI (`~/.claude/skills/`) → `~/.cursor/skills-cursor/` and `~/.codex/skills/`
+- Project-local skills: `<project>/.agents/skills/<name>/SKILL.md` → `<project>/.claude/skills/<name>`, `<project>/.codex/skills/<name>`, and `<project>/.cursor/skills/<name>` symlink mirrors
 - MCP: Claude config remains the source; Cursor and Codex receive additive config entries
 - Project instructions/context: audit `AGENTS.md`, `CLAUDE.md`, project docs, and Codex trust settings
 - Hooks, command sources, subagents, recent sessions, memory, and platform-only features: audit and report how to preserve usable behavior in Codex; migrate only safe additive pieces after review
@@ -29,7 +29,7 @@ Cover the same broad setup areas users expect from a Claude Code → Codex move:
 
 | Source area | Codex target | Default action |
 | --- | --- | --- |
-| Skills | `~/.codex/skills/` and `<project>/.agents/skills/` | Sync symlinks, skip native/drift |
+| Skills | `~/.codex/skills/` and project-local `.claude`/`.codex`/`.cursor` mirrors | Sync symlinks, skip native/drift |
 | MCP | `~/.codex/config.toml` and project `.codex/config.toml` | Add missing entries after confirmation |
 | Instructions | `~/.codex/AGENTS.md`, project `AGENTS.md`, `CLAUDE.md` symlink | Audit and propose minimal patches |
 | Hooks | `hooks.json` or inline `[hooks]` in Codex config layers | Audit, migrate only reviewed command hooks |
@@ -145,7 +145,7 @@ Read `references/native-skills-registry.md` from this skill's directory. Extract
 ### 2c. Check each platform
 
 For each global CLI skill name:
-- First verify the source contains canonical `SKILL.md`. If it has only lowercase `skill.md`, report `non-canonical` and do not sync it.
+- First verify the source contains canonical `SKILL.md`. If it has only a lowercase manifest filename, report `non-canonical` and do not sync it.
 
 **Cursor check:**
 - If name is in CURSOR_NATIVE → status = `native-skip`
@@ -185,14 +185,14 @@ Summary: N global skills, M gaps (K Cursor + L Codex)
 
 ```bash
 # Canonical project-local skills under SCAN_ROOT:
-find <SCAN_ROOT> -maxdepth 5 -path "*/.claude/skills/*/SKILL.md" -type f 2>/dev/null
+find <SCAN_ROOT> -maxdepth 5 -path "*/.agents/skills/*/SKILL.md" -type f 2>/dev/null
 ```
 
-> **Why `-maxdepth 5`:** for `~/Developer/<project>/.claude/skills/<name>/SKILL.md`, the manifest is exactly 5 levels below `~/Developer`. This includes top-level project skills and excludes nested workspace copies such as `temp/`, `_experiments/`, and worktrees.
+> **Why `-maxdepth 5`:** for `~/Developer/<project>/.agents/skills/<name>/SKILL.md`, the manifest is exactly 5 levels below `~/Developer`. This includes top-level project skills and excludes nested workspace copies such as `temp/`, `_experiments/`, and worktrees.
 
 For each match:
-- Skill source dir = `<project>/.claude/skills/<name>/`
-- Project root = parent of `.claude/`
+- Skill source dir = `<project>/.agents/skills/<name>/`
+- Project root = parent of `.agents/`
 - Count it as canonical only when `SKILL.md` has YAML frontmatter with at least `name` and `description`
 - Keep project-local skills scoped to the same project; never promote them into `~/.codex/skills/` or `~/.cursor/skills-cursor/`
 
@@ -207,7 +207,7 @@ Project-local skills: <N> canonical
 
 Excluded cases:
 - `nested workspace`: manifests inside nested project workspaces
-- `non-canonical`: lowercase-only `skill.md`, missing `SKILL.md`, or no frontmatter
+- `non-canonical`: lowercase-only manifest filename, missing `SKILL.md`, or no frontmatter
 - `broken`: `SKILL.md` exists but frontmatter lacks `name` or `description`
 
 ### 3b. Check each platform
@@ -221,25 +221,28 @@ For each project-local CLI skill name in project `<project>`:
 **Cursor check:**
 - If name is in CURSOR_NATIVE → status = `native-skip`
 - Else check: `ls -la <project>/.cursor/skills/<name>`
-  - Exists and is valid symlink to `<project>/.claude/skills/<name>` → `synced`
+  - Exists and is valid symlink to `<project>/.agents/skills/<name>` → `synced`
+  - Exists as a real directory/file with substantive differences → `DRIFT`
+  - Exists but points elsewhere → `wrong-target`
+  - Doesn't exist → `MISSING`
+
+**Claude project mirror check:**
+- Else check: `ls -la <project>/.claude/skills/<name>`
+  - Exists and is valid symlink to `<project>/.agents/skills/<name>` → `synced`
   - Exists as a real directory/file with substantive differences → `DRIFT`
   - Exists but points elsewhere → `wrong-target`
   - Doesn't exist → `MISSING`
 
 **Codex check:**
 - If name is in CODEX_NATIVE → status = `native-skip`
-- Else check: `ls -la <project>/.agents/skills/<name>`
-  - Exists and is valid symlink to `<project>/.claude/skills/<name>` → `synced`
+- Else check: `ls -la <project>/.codex/skills/<name>`
+  - Exists and is valid symlink to `<project>/.agents/skills/<name>` → `synced`
   - Exists as a real directory/file with substantive differences → `DRIFT`
   - Exists but points elsewhere → `wrong-target`
   - Doesn't exist → `MISSING`
-- Also check legacy root `ls -la <project>/.codex/skills/<name> 2>/dev/null`
-  - If both `.agents/skills/<name>` and `.codex/skills/<name>` contain valid manifests → `DUPLICATE_CODEX_PROJECT_SKILL`
-  - If legacy exists without a matching valid `.claude/skills/<name>/SKILL.md` → `ORPHAN_LEGACY_CODEX_SKILL`
-  - Future sync runs must not create project-local skills under `.codex/skills/`
 - If this skill repository's helper scripts are available, run from this skill directory:
   ```bash
-  python3 scripts/check-codex-project-skill-duplicates.py --projects-root <SCAN_ROOT>
+  python3 scripts/check-project-skill-layout.py --projects-root <SCAN_ROOT>
   ```
 
 ### 3c. Report
@@ -517,33 +520,36 @@ For `wrong-target`, `native-or-local-skip`, or `DRIFT`, report the path and do n
 
 ### 9b. Project-local skills
 
-For each project-local skill `<project>/.claude/skills/<name>` with status `MISSING` and no `global-name-conflict`:
+For each project-local skill `<project>/.agents/skills/<name>` with status `MISSING` and no `global-name-conflict`:
+
+**Claude project mirror:**
+```bash
+mkdir -p <project>/.claude/skills
+ln -s ../../.agents/skills/<name> <project>/.claude/skills/<name>
+```
 
 **Cursor:**
 ```bash
 mkdir -p <project>/.cursor/skills
-ln -s ../../.claude/skills/<name> <project>/.cursor/skills/<name>
+ln -s ../../.agents/skills/<name> <project>/.cursor/skills/<name>
 ```
 
 **Codex:**
 ```bash
-mkdir -p <project>/.agents/skills
-ln -s ../../.claude/skills/<name> <project>/.agents/skills/<name>
+mkdir -p <project>/.codex/skills
+ln -s ../../.agents/skills/<name> <project>/.codex/skills/<name>
 ```
 
 Verification:
 ```bash
-ls -la <project>/.agents/skills/<name>
-# Should show: <name> -> ../../.claude/skills/<name>
+ls -la <project>/.claude/skills/<name> <project>/.codex/skills/<name> <project>/.cursor/skills/<name>
+# Each should show: <name> -> ../../.agents/skills/<name>
 ```
 
 Rules:
 - Keep scope symmetric: project-local Claude skills stay project-local in Cursor and Codex
-- Project-local Codex mirrors live only in `<project>/.agents/skills/`
-- `<project>/.codex/skills/` is a legacy project-local root. Do not create new entries there.
-- If legacy `<project>/.codex/skills/<name>` exists, report it. Do not remove it in normal sync.
-- If both `.agents/skills/<name>` and `.codex/skills/<name>` are valid, report `DUPLICATE_CODEX_PROJECT_SKILL`.
-- If legacy `.codex/skills/<name>` has no matching valid `.claude/skills/<name>/SKILL.md`, report `ORPHAN_LEGACY_CODEX_SKILL`.
+- Project-local source lives only in `<project>/.agents/skills/`
+- `<project>/.claude/skills/`, `<project>/.codex/skills/`, and `<project>/.cursor/skills/` are symlink mirrors to `.agents`
 - Never export project-local skills into `~/.codex/skills/` or `~/.cursor/skills-cursor/`
 - Native skill names still win; skip them rather than shadowing built-ins
 - Global skill names also win unless allowlisted; skip conflicts to avoid duplicate slash-command entries
@@ -654,7 +660,7 @@ After sync completes, run a quick re-audit and display:
 Skills synced: +N Cursor, +N Codex
 MCP synced: +N Cursor, +N Codex
 Skipped: N (native/global-name conflict/DRIFT)
-Legacy warnings: N duplicate/orphan `.codex/skills` entries
+Mirror warnings: N missing/broken/non-symlink project-local skill mirrors
 
 Remaining gaps: N (if any, explain why)
 ```

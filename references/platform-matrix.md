@@ -12,27 +12,27 @@ All paths use `~` as the user's home directory. On Windows this means `%USERPROF
 | Sync mechanism | N/A (source) | Symlinks → CLI | Symlinks → CLI |
 | Skill file format | `SKILL.md` (uppercase!) | `SKILL.md` | `SKILL.md` (uppercase required) |
 | Native skills | None (all user-installed) | ~13 built-in | ~10 built-in |
-| Project skills | `<project>/.claude/skills/` (project source of truth) | `<project>/.agents/skills/` | `<project>/.cursor/skills/` |
+| Project skills | `<project>/.claude/skills/` mirror | `<project>/.codex/skills/` mirror | `<project>/.cursor/skills/` mirror |
 
 Project-local skill parity convention:
-- Claude project skill: `<project>/.claude/skills/<name>/`
-- Cursor project skill: `<project>/.cursor/skills/<name>` → symlink to Claude source
-- Codex project skill: `<project>/.agents/skills/<name>` → symlink to Claude source
+- Canonical source: `<project>/.agents/skills/<name>/SKILL.md`
+- Claude project mirror: `<project>/.claude/skills/<name>` → symlink to `.agents` source
+- Codex project mirror: `<project>/.codex/skills/<name>` → symlink to `.agents` source
+- Cursor project mirror: `<project>/.cursor/skills/<name>` → symlink to `.agents` source
 - Project-local skills stay scoped to their repository and are not promoted into global skill directories
 
-**Important:** The skill file MUST be named `SKILL.md` (uppercase). Codex discovery is case-sensitive and Cursor parity assumes uppercase; lowercase-only `skill.md` is treated as non-canonical.
+**Important:** The skill file MUST be named `SKILL.md` (uppercase). Codex discovery is case-sensitive and Cursor parity assumes uppercase; lowercase-only manifest filenames are treated as non-canonical.
 
-Codex project-local legacy note:
-- `<project>/.codex/skills/` is legacy. Future sync runs must not create project-local skills there.
-- Ordinary sync reports legacy entries but does not remove them.
-- If both `.agents/skills/<name>` and `.codex/skills/<name>` contain valid manifests, report `DUPLICATE_CODEX_PROJECT_SKILL`.
-- If `.codex/skills/<name>` has no matching valid `.claude/skills/<name>/SKILL.md`, report `ORPHAN_LEGACY_CODEX_SKILL`.
-- Helper: `python3 scripts/check-codex-project-skill-duplicates.py --projects-root <SCAN_ROOT>` reports duplicate valid Codex project-local skills.
+Project-local mirror rule:
+- `.agents/skills/<name>` is the only source directory.
+- `.claude/skills/<name>`, `.codex/skills/<name>`, and `.cursor/skills/<name>` should be symlinks to `../../.agents/skills/<name>`.
+- A real directory under a mirror root is `DRIFT` unless the project intentionally documents it.
+- Helper: `python3 scripts/check-project-skill-layout.py --projects-root <SCAN_ROOT>` validates canonical skills and mirrors.
 
 Canonical project-local count:
-- Count only `<SCAN_ROOT>/<project>/.claude/skills/<name>/SKILL.md` where `<project>` is a top-level project directory.
+- Count only `<SCAN_ROOT>/<project>/.agents/skills/<name>/SKILL.md` where `<project>` is a top-level project directory.
 - The manifest must have frontmatter with at least `name` and `description`.
-- Report nested workspace, lowercase-only, missing-frontmatter, and broken manifests separately.
+- Report nested workspace, lowercase-only manifest filenames, missing-frontmatter, and broken manifests separately.
 
 ## Claude Commands
 
@@ -67,10 +67,10 @@ Policy:
 
 ## Project-Local Skill Conflict Policy
 
-Project-local skill names should not collide with global skill names in `~/.claude/skills/<name>`, because Codex can surface duplicate slash-command entries.
+Project-local skill names should not collide with global skill names in `~/.claude/skills/<name>`, because agent surfaces can show duplicate invocable entries.
 
 Default behavior:
-- If `<project>/.claude/skills/<name>` conflicts with `~/.claude/skills/<name>`, do not mirror it automatically.
+- If `<project>/.agents/skills/<name>` conflicts with `~/.claude/skills/<name>`, do not mirror it automatically.
 - Suggest renaming the local skill (for example `pullrequest-<project>`) or moving project-specific guidance into `AGENTS.md`.
 
 Allowlisted conflicts:
@@ -78,8 +78,8 @@ Allowlisted conflicts:
 - Additional project-specific exceptions only when the user explicitly provides them in the prompt, project instructions, or a repository-maintained policy file.
 
 Repository visibility policy:
-- Private maintainer repositories may commit `.cursor/skills/` and `.agents/skills/` symlinks.
-- Public or third-party repositories should usually `.gitignore` `.cursor/skills/` and `.agents/skills/` and keep mirrors local.
+- Template and project repositories that intentionally ship local skills may commit `.agents/skills/` plus `.claude/skills/`, `.codex/skills/`, and `.cursor/skills/` symlinks.
+- Public repositories that do not own local skills should avoid committing platform-generated skill state.
 
 ## Project Instructions
 
@@ -200,7 +200,7 @@ Without this, Codex will prompt for trust confirmation every time. The ecosystem
 | Component | Synced? | Mechanism | Notes |
 |-----------|---------|-----------|-------|
 | Custom skills (global) | Yes | Symlinks CLI → Cursor/Codex | Skip native skills |
-| Custom skills (project-local) | Yes | Symlinks project Claude → project Cursor/`.agents` | Keep repo scope; `.codex/skills` is legacy |
+| Custom skills (project-local) | Yes | Symlinks `.agents` source → project Claude/Codex/Cursor mirrors | Keep repo scope |
 | Claude command sources | Manual | Convert into skills | Do not create slash-command shims |
 | Global MCP (stdio) | Yes | Config entry conversion | JSON ↔ TOML |
 | Global MCP (HTTP) | Yes | Config entry conversion | Claude/Cursor JSON headers → Codex TOML `http_headers` |
