@@ -2,7 +2,7 @@
 
 Один промпт для Codex App, чтобы перенести и проверить экосистему Claude Code: скиллы, MCP, instructions, hooks, subagents, память, recent sessions и project-local настройки.
 
-Claude Code остаётся источником истины. Codex App получает всё, что можно безопасно подключить глобально на уровне пользователя и локально в текущем проекте.
+Claude Code остаётся источником истины для глобальных пользовательских настроек. Для project-local skills источник истины теперь сам проект: `<project>/.agents/skills/<name>/SKILL.md`, а `.claude`, `.codex` и `.cursor` получают совместимые symlink-mirrors.
 
 ## Быстрый запуск
 
@@ -35,7 +35,7 @@ AGENTS/CLAUDE instructions, hooks, subagents, recent sessions, Codex trusted pro
 
 - Найти Claude Code конфиги и скиллы в `~/.claude/`.
 - Подключить глобальные скиллы в `~/.codex/skills/`, не трогая нативные Codex skills.
-- Подключить project-local скиллы в `<project>/.agents/skills/`; legacy `<project>/.codex/skills/` только диагностировать.
+- Подключить project-local скиллы из `<project>/.agents/skills/` в зеркала `<project>/.claude/skills/`, `<project>/.codex/skills/` и `<project>/.cursor/skills/`.
 - Синхронизировать MCP из Claude Code в Codex TOML, включая HTTP MCP через `url` + `http_headers`.
 - Проверить `AGENTS.md` / `CLAUDE.md`, project trust в Codex и локальные project configs.
 - Проверить Claude hooks и предложить только безопасную reviewed-миграцию в Codex hooks.
@@ -86,10 +86,11 @@ Codex должен использовать platform-native операции. К
 - [`SKILL.md`](SKILL.md) — основная инструкция для AI-агента.
 - [`PROMPT.md`](PROMPT.md) — короткий промпт для запуска из Codex App.
 - [`references/platform-matrix.md`](references/platform-matrix.md) — что и куда синхронизируется.
+- [`references/adr-2026-project-local-skills-source.md`](references/adr-2026-project-local-skills-source.md) — решение о `.agents/skills` как source of truth для project-local skills.
 - [`references/mcp-format-guide.md`](references/mcp-format-guide.md) — правила конвертации MCP JSON ↔ TOML.
 - [`references/native-skills-registry.md`](references/native-skills-registry.md) — нативные скиллы, которые нельзя трогать.
 - [`references/troubleshooting.md`](references/troubleshooting.md) — диагностика частых проблем.
-- [`scripts/check-codex-project-skill-duplicates.py`](scripts/check-codex-project-skill-duplicates.py) — read-only проверка дублей `.agents/skills` + legacy `.codex/skills`.
+- [`scripts/check-project-skill-layout.py`](scripts/check-project-skill-layout.py) — read-only проверка canonical `.agents/skills` и mirror symlinks в `.claude`, `.codex`, `.cursor`.
 
 README на русском — для людей. `SKILL.md` и `references/` на английском — для AI-агентов.
 
