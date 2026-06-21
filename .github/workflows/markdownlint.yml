@@ -2,10 +2,16 @@ name: markdownlint
 
 on:
   pull_request:
-    paths: ['**.md']
+    paths:
+      - '**.md'
+      - '.github/workflows/markdownlint.yml'
+      - '.markdownlint.json'
   push:
     branches: [main]
-    paths: ['**.md']
+    paths:
+      - '**.md'
+      - '.github/workflows/markdownlint.yml'
+      - '.markdownlint.json'
 
 permissions:
   contents: read
@@ -18,5 +24,5 @@ jobs:
       - uses: DavidAnson/markdownlint-cli2-action@v23
         with:
           globs: |
-            **/*.md
-            !skill-andMCPupdater-zvasil/**
+            CLAUDE.md
+            agent_docs/**/*.md
