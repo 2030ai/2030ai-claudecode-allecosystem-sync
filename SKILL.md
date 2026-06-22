@@ -1,10 +1,10 @@
 ---
 name: ecosystem-sync
-description: "Cross-platform migration and sync for Claude Code ecosystem. Audit or sync skills, MCP servers, instructions, hooks, subagents, memory/context, recent sessions, and Codex readiness across Claude Code CLI/Desktop, Codex App/CLI, and Cursor. Use when the user links this repository in Codex App, asks to make Claude Code ecosystem work in Codex, checks cross-platform setup, audits skills/MCP across platforms, or mentions ecosystem-sync."
+description: "/ecosystem-sync — Cross-platform migration and sync for Claude Code ecosystem. Audit or sync skills, MCP servers, instructions, hooks, subagents, memory/context, recent sessions, and Codex readiness across Claude Code CLI/Desktop, Codex App/CLI, and Cursor. Use when the user links this repository in Codex App, asks to make Claude Code ecosystem work in Codex, checks cross-platform setup, audits skills/MCP across platforms, or mentions ecosystem-sync."
 user-invocable: true
 ---
 
-# Ecosystem Sync
+# /ecosystem-sync
 
 Synchronize your Claude Code ecosystem across Claude Code CLI/Desktop, Codex App/CLI, and Cursor.
 
